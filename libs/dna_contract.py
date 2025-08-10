@@ -46,7 +46,9 @@ def load_dna_module(path: Path, module_name: Optional[str] = None) -> ModuleType
     try:
         spec.loader.exec_module(module)  # type: ignore
     except Exception as e:
-        raise DNAContractError(f"Error executing DNA module {path.name}: {format_exception(e)}") from e
+        raise DNAContractError(
+            f"Error executing DNA module {path.name}: {format_exception(e)}"
+        ) from e
 
     validate_dna(module)
     return module
@@ -69,7 +71,9 @@ def validate_dna(module: ModuleType) -> None:
         raise DNAContractError("EXIT_POLICIES must be a list[dict]")
     for i, p in enumerate(exit_policies):
         if not isinstance(p, dict) or "name" not in p:
-            raise DNAContractError(f"EXIT_POLICIES[{i}] must be dict with at least 'name' field")
+            raise DNAContractError(
+                f"EXIT_POLICIES[{i}] must be dict with at least 'name' field"
+            )
 
     tasks = getattr(module, "TASKS")
     if not isinstance(tasks, dict):
@@ -91,13 +95,35 @@ def validate_dna(module: ModuleType) -> None:
                 if isinstance(cfg, str) and cfg in ("classification", "regression"):
                     pass
                 else:
-                    raise DNAContractError(f"TASKS['{task}'] must specify type/kind or be 'classification'/'regression'")
+                    raise DNAContractError(
+                        f"TASKS['{task}'] must specify type/kind or be "
+                        "'classification'/'regression'"
+                    )
         # classes check for classification if provided
         classes = cfg.get("classes") if isinstance(cfg, dict) else None
-        if (isinstance(cfg, dict) and cfg.get("type", cfg.get("task", cfg.get("kind", cfg.get("classification" if "classification" in cfg else None, None)))) in ("classification",)) or (isinstance(cfg, str) and cfg == "classification"):
+        if isinstance(cfg, dict):
+            type_hint = cfg.get(
+                "type",
+                cfg.get(
+                    "task",
+                    cfg.get(
+                        "kind",
+                        cfg.get(
+                            "classification" if "classification" in cfg else None, None
+                        ),
+                    ),
+                ),
+            )
+            is_classification = type_hint in ("classification",)
+        else:
+            is_classification = isinstance(cfg, str) and cfg == "classification"
+
+        if is_classification:
             # classes may be optional for some problems, but recommended
             if classes is not None and not isinstance(classes, list):
-                raise DNAContractError(f"TASKS['{task}'].classes must be list if provided")
+                raise DNAContractError(
+                    f"TASKS['{task}'].classes must be list if provided"
+                )
 
     # Signature checks (best-effort)
     _require_callable(module, "calculate_features", ["df", "meta"])
@@ -118,7 +144,9 @@ def _require_callable(module: ModuleType, name: str, arg_names: List[str]) -> No
     params = list(sig.parameters.keys())
     # allow extra args, but ensure first N match expected order
     if len(params) < len(arg_names):
-        raise DNAContractError(f"{name} must accept at least {len(arg_names)} args: {arg_names}")
+        raise DNAContractError(
+            f"{name} must accept at least {len(arg_names)} args: {arg_names}"
+        )
     for i, an in enumerate(arg_names):
         if params[i] != an:
             # relax strict naming but keep count
@@ -137,7 +165,8 @@ def snapshot_dna_file(src_path: Path, dst_path: Path) -> None:
 
 def assert_input_schema(df: pd.DataFrame) -> None:
     """
-    Ensure required columns exist and open_time has timezone-aware UTC dtype or naive datetime64 acceptable.
+    Ensure required columns exist and open_time has timezone-aware UTC dtype
+    or naive datetime64 acceptable.
     """
     required = ["open_time", "open", "high", "low", "close", "volume"]
     missing = [c for c in required if c not in df.columns]

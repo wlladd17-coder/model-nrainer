@@ -32,7 +32,10 @@ from .utils import (
 
 # Model factory
 
-def build_model(alg: str, task_type: str, params: Dict[str, Any], use_gpu: bool = False):
+
+def build_model(
+    alg: str, task_type: str, params: Dict[str, Any], use_gpu: bool = False
+):
     alg = alg.lower()
     if alg == "randomforest":
         if task_type == "classification":
@@ -96,7 +99,12 @@ def _infer_task_type(tasks_schema: Dict[str, Any], task_name: str) -> str:
     if isinstance(cfg, str):
         return cfg
     # common keys
-    return cfg.get("type") or cfg.get("task") or cfg.get("kind") or ("classification" if "classes" in cfg else "regression")
+    return (
+        cfg.get("type")
+        or cfg.get("task")
+        or cfg.get("kind")
+        or ("classification" if "classes" in cfg else "regression")
+    )
 
 
 def _is_binary(y: pd.Series) -> bool:
@@ -106,11 +114,15 @@ def _is_binary(y: pd.Series) -> bool:
         return False
 
 
-def _plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, labels: List[str], out_path: Path) -> None:
+def _plot_confusion_matrix(
+    y_true: np.ndarray, y_pred: np.ndarray, labels: List[str], out_path: Path
+) -> None:
     ensure_dir(out_path.parent)
     cm = metrics.confusion_matrix(y_true, y_pred, labels=labels)
     plt.figure(figsize=(6, 5))
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=labels, yticklabels=labels)
+    sns.heatmap(
+        cm, annot=True, fmt="d", cmap="Blues", xticklabels=labels, yticklabels=labels
+    )
     plt.ylabel("True")
     plt.xlabel("Predicted")
     plt.tight_layout()
@@ -155,7 +167,9 @@ class TrainResult:
     timings: Dict[str, float]
 
 
-def time_split_indices(n: int, valid_size: float = 0.2) -> Tuple[np.ndarray, np.ndarray]:
+def time_split_indices(
+    n: int, valid_size: float = 0.2
+) -> Tuple[np.ndarray, np.ndarray]:
     n_valid = int(max(1, round(n * valid_size)))
     n_train = max(1, n - n_valid)
     train_idx = np.arange(0, n_train, dtype=int)
@@ -204,7 +218,9 @@ def train_one_task(
     feats = dna_module.feature_columns(df_feat)
     X_full = dna_module.inference_inputs(df_feat, feats)
     if task_name not in labels_dict:
-        raise ValueError(f"Task '{task_name}' not found in labels; available: {list(labels_dict)}")
+        raise ValueError(
+            f"Task '{task_name}' not found in labels; available: {list(labels_dict)}"
+        )
     y_full = labels_dict[task_name]
 
     # Align indices
@@ -241,23 +257,34 @@ def train_one_task(
     if task_type == "classification":
         y_pred = model.predict(X_valid)
         metrics_out["accuracy"] = float(metrics.accuracy_score(y_valid, y_pred))
-        metrics_out["f1_macro"] = float(metrics.f1_score(y_valid, y_pred, average="macro"))
+        metrics_out["f1_macro"] = float(
+            metrics.f1_score(y_valid, y_pred, average="macro")
+        )
         if _is_binary(y_valid):
             # ROC-AUC with probability for positive class
             try:
                 if hasattr(model, "predict_proba"):
                     proba = model.predict_proba(X_valid)
                     if proba.shape[1] == 2:
-                        metrics_out["roc_auc"] = float(metrics.roc_auc_score(y_valid, proba[:, 1]))
+                        metrics_out["roc_auc"] = float(
+                            metrics.roc_auc_score(y_valid, proba[:, 1])
+                        )
                 elif hasattr(model, "decision_function"):
                     scores = model.decision_function(X_valid)
-                    metrics_out["roc_auc"] = float(metrics.roc_auc_score(y_valid, scores))
+                    metrics_out["roc_auc"] = float(
+                        metrics.roc_auc_score(y_valid, scores)
+                    )
             except Exception:
                 pass
         # Confusion matrix
         labels_sorted = sorted(pd.Series(y_valid.unique()).tolist())
         cm_path = reports_dir / "tmp_confusion_matrix.png"
-        _plot_confusion_matrix(y_valid.to_numpy(), y_pred, labels=[str(x) for x in labels_sorted], out_path=cm_path)
+        _plot_confusion_matrix(
+            y_valid.to_numpy(),
+            y_pred,
+            labels=[str(x) for x in labels_sorted],
+            out_path=cm_path,
+        )
         artifacts["confusion_matrix"] = cm_path
     else:
         y_pred = model.predict(X_valid)

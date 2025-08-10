@@ -10,15 +10,34 @@ import pandas as pd
 STRATEGY_NAME = "Level_Retest_v1"
 
 EXIT_POLICIES: List[Dict[str, Any]] = [
-    {"name": "Policy_0_Fixed_SL20_RR2", "type": "fixed", "params": {"sl_pips": 20.0, "rr": 2.0}},
-    {"name": "Policy_1_Fixed_SL40_RR3", "type": "fixed", "params": {"sl_pips": 40.0, "rr": 3.0}},
-    {"name": "Policy_2_ATR_SL1.5_RR2", "type": "atr",   "params": {"sl_multiplier": 1.5, "rr": 2.0}},
-    {"name": "Policy_3_ATR_SL2.0_RR3", "type": "atr",   "params": {"sl_multiplier": 2.0, "rr": 3.0}},
+    {
+        "name": "Policy_0_Fixed_SL20_RR2",
+        "type": "fixed",
+        "params": {"sl_pips": 20.0, "rr": 2.0},
+    },
+    {
+        "name": "Policy_1_Fixed_SL40_RR3",
+        "type": "fixed",
+        "params": {"sl_pips": 40.0, "rr": 3.0},
+    },
+    {
+        "name": "Policy_2_ATR_SL1.5_RR2",
+        "type": "atr",
+        "params": {"sl_multiplier": 1.5, "rr": 2.0},
+    },
+    {
+        "name": "Policy_3_ATR_SL2.0_RR3",
+        "type": "atr",
+        "params": {"sl_multiplier": 2.0, "rr": 3.0},
+    },
 ]
 
 TASKS: Dict[str, Any] = {
     "entry_action": {"type": "classification", "classes": ["SKIP", "BUY", "SELL"]},
-    "policy_choice": {"type": "classification", "classes": [p["name"] for p in EXIT_POLICIES]},
+    "policy_choice": {
+        "type": "classification",
+        "classes": [p["name"] for p in EXIT_POLICIES],
+    },
     "level_quality": {"type": "classification", "classes": [0, 1]},
 }
 
@@ -67,11 +86,15 @@ def calculate_features(df: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
 
     # Swing highs/lows карта (разрешено центрирование, т.к. это не используется как сигнал напрямую)
     N = swing_n
-    sw_high = out["high"].rolling(2 * N + 1, center=True).apply(
-        lambda x: x[N] == np.max(x), raw=True
+    sw_high = (
+        out["high"]
+        .rolling(2 * N + 1, center=True)
+        .apply(lambda x: x[N] == np.max(x), raw=True)
     )
-    sw_low = out["low"].rolling(2 * N + 1, center=True).apply(
-        lambda x: x[N] == np.min(x), raw=True
+    sw_low = (
+        out["low"]
+        .rolling(2 * N + 1, center=True)
+        .apply(lambda x: x[N] == np.min(x), raw=True)
     )
     out["is_swing_high"] = sw_high.fillna(0).astype(bool)
     out["is_swing_low"] = sw_low.fillna(0).astype(bool)
@@ -80,7 +103,9 @@ def calculate_features(df: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
     return out
 
 
-def generate_ideas(df_with_features: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
+def generate_ideas(
+    df_with_features: pd.DataFrame, meta: Dict[str, Any]
+) -> pd.DataFrame:
     """
     Генерирует сигналы без использования будущих баров.
     Идея: вход при ретесте ранее сформированного swing-уровня.
@@ -90,8 +115,16 @@ def generate_ideas(df_with_features: pd.DataFrame, meta: Dict[str, Any]) -> pd.D
     touch_k = float(meta.get("touch_k", 0.25))  # доля ATR для зоны касания
 
     # Собираем уровни, СТРОГО прошлого относительно текущего бара
-    sup = df.loc[df["is_swing_low"], ["open_time", "low"]].rename(columns={"low": "level_price"}).set_index("open_time")
-    res = df.loc[df["is_swing_high"], ["open_time", "high"]].rename(columns={"high": "level_price"}).set_index("open_time")
+    sup = (
+        df.loc[df["is_swing_low"], ["open_time", "low"]]
+        .rename(columns={"low": "level_price"})
+        .set_index("open_time")
+    )
+    res = (
+        df.loc[df["is_swing_high"], ["open_time", "high"]]
+        .rename(columns={"high": "level_price"})
+        .set_index("open_time")
+    )
 
     entry = np.zeros(len(df), dtype=int)  # 0=SKIP,1=BUY,2=SELL
     policy_idx = np.zeros(len(df), dtype=int)
@@ -114,8 +147,8 @@ def generate_ideas(df_with_features: pd.DataFrame, meta: Dict[str, Any]) -> pd.D
 
         touch_zone = atr_i * touch_k
 
-        past_sup = sup.loc[:t - pd.Timedelta(nanoseconds=1)] if not sup.empty else sup
-        past_res = res.loc[:t - pd.Timedelta(nanoseconds=1)] if not res.empty else res
+        past_sup = sup.loc[: t - pd.Timedelta(nanoseconds=1)] if not sup.empty else sup
+        past_res = res.loc[: t - pd.Timedelta(nanoseconds=1)] if not res.empty else res
 
         # BUY при касании поддержки
         if not past_sup.empty:
@@ -140,7 +173,7 @@ def generate_ideas(df_with_features: pd.DataFrame, meta: Dict[str, Any]) -> pd.D
 
         # Выбор политики: при более высокой волатильности — ATR-политики
         if level_quality[i] == 1:
-            if atr_i > np.nanmedian(atr_vals[max(0, i - 200):i+1]):
+            if atr_i > np.nanmedian(atr_vals[max(0, i - 200) : i + 1]):
                 # ATR политики: выберем Policy_2 (индекс 2)
                 policy_idx[i] = 2
             else:
@@ -184,7 +217,9 @@ def generate_ideas(df_with_features: pd.DataFrame, meta: Dict[str, Any]) -> pd.D
     return df
 
 
-def build_labels(df_with_ideas: pd.DataFrame, meta: Dict[str, Any]) -> Dict[str, pd.Series]:
+def build_labels(
+    df_with_ideas: pd.DataFrame, meta: Dict[str, Any]
+) -> Dict[str, pd.Series]:
     return {
         "entry_action": df_with_ideas["entry_action"].astype("Int64"),
         "policy_choice": df_with_ideas["policy_choice"].astype("Int64"),
@@ -193,8 +228,19 @@ def build_labels(df_with_ideas: pd.DataFrame, meta: Dict[str, Any]) -> Dict[str,
 
 
 def feature_columns(df_with_features: pd.DataFrame) -> List[str]:
-    drop = {"open_time", "open", "high", "low", "close", "volume",
-            "entry_action", "policy_choice", "level_quality", "sl_price", "tp_price"}
+    drop = {
+        "open_time",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "entry_action",
+        "policy_choice",
+        "level_quality",
+        "sl_price",
+        "tp_price",
+    }
     feats = [c for c in df_with_features.columns if c not in drop]
     return sorted(feats)
 

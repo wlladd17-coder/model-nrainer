@@ -21,7 +21,13 @@ from libs.data_io import (
 )
 from libs.dna_contract import load_dna_module, DNAContractError
 from libs.backtesting import run_inference, simulate, save_backtest_report
-from libs.utils import ensure_dir, get_logger, detect_env_summary, TOOL_VERSION, write_json
+from libs.utils import (
+    ensure_dir,
+    get_logger,
+    detect_env_summary,
+    TOOL_VERSION,
+    write_json,
+)
 
 
 st.set_page_config(page_title="Backtester App", layout="wide")
@@ -32,8 +38,12 @@ def sidebar_globals():
     data_dir = Path(st.sidebar.text_input("Каталог данных", "data"))
     models_dir = Path(st.sidebar.text_input("Каталог моделей", "models"))
     reports_dir = Path(st.sidebar.text_input("Каталог отчётов", "reports"))
-    strategies_dir = Path(st.sidebar.text_input("Каталог стратегий (DNA)", "strategies"))
-    log_level = st.sidebar.selectbox("Log level", ["INFO", "DEBUG", "WARNING", "ERROR"], index=0)
+    strategies_dir = Path(
+        st.sidebar.text_input("Каталог стратегий (DNA)", "strategies")
+    )
+    log_level = st.sidebar.selectbox(
+        "Log level", ["INFO", "DEBUG", "WARNING", "ERROR"], index=0
+    )
 
     ensure_dir(data_dir / "raw")
     ensure_dir(data_dir / "prepared")
@@ -67,15 +77,27 @@ def load_model_bundle(model_path: Path) -> Dict[str, Any]:
         meta = json.load(f)
     # Попробуем найти копию ДНК рядом
     strategy_copy_path = model_path.with_suffix(".strategy.py")
-    return {"model": model, "meta": meta, "strategy_copy_path": strategy_copy_path if strategy_copy_path.exists() else None}
+    return {
+        "model": model,
+        "meta": meta,
+        "strategy_copy_path": (
+            strategy_copy_path if strategy_copy_path.exists() else None
+        ),
+    }
 
 
 def main():
     g = sidebar_globals()
-    logger = get_logger(log_path=(g["reports_dir"] / "backtests" / "ui_logs.txt"), name="backtester_ui", level=g["log_level"])
+    logger = get_logger(
+        log_path=(g["reports_dir"] / "backtests" / "ui_logs.txt"),
+        name="backtester_ui",
+        level=g["log_level"],
+    )
 
     st.title("Backtester — тестирование моделей/оркестров")
-    st.caption(f"Версия инструмента: {TOOL_VERSION} | Среда: {detect_env_summary().get('platform')}")
+    st.caption(
+        f"Версия инструмента: {TOOL_VERSION} | Среда: {detect_env_summary().get('platform')}"
+    )
 
     if "state_bt" not in st.session_state:
         st.session_state.state_bt = {}
@@ -90,11 +112,17 @@ def main():
         st.write("Выберите файлы из data/raw. Поддерживаются CSV/XLSX/JSON.")
         col1, col2, col3 = st.columns(3)
         with col1:
-            csv_files = st.multiselect("CSV файлы", [str(p) for p in sorted(raw_dir.glob("*.csv"))])
+            csv_files = st.multiselect(
+                "CSV файлы", [str(p) for p in sorted(raw_dir.glob("*.csv"))]
+            )
         with col2:
-            xlsx_files = st.multiselect("XLSX файлы", [str(p) for p in sorted(raw_dir.glob("*.xlsx"))])
+            xlsx_files = st.multiselect(
+                "XLSX файлы", [str(p) for p in sorted(raw_dir.glob("*.xlsx"))]
+            )
         with col3:
-            json_files = st.multiselect("JSON файлы", [str(p) for p in sorted(raw_dir.glob("*.json"))])
+            json_files = st.multiselect(
+                "JSON файлы", [str(p) for p in sorted(raw_dir.glob("*.json"))]
+            )
         submitted = st.form_submit_button("Загрузить данные")
         if submitted:
             try:
@@ -123,28 +151,44 @@ def main():
     with st.form("bt_model_form", clear_on_submit=False):
         model_files = list_model_files(g["models_dir"])
         mf_str = [str(p) for p in model_files]
-        sel_model = st.selectbox("Файл модели (.joblib)", mf_str, index=0 if mf_str else -1)
-        st.write("При наличии рядом .meta.json и .strategy.py — они будут использованы автоматически.")
-        use_custom_dna = st.checkbox("Указать ДНК вручную (если копии рядом с моделью нет)")
+        sel_model = st.selectbox(
+            "Файл модели (.joblib)", mf_str, index=0 if mf_str else -1
+        )
+        st.write(
+            "При наличии рядом .meta.json и .strategy.py — они будут использованы автоматически."
+        )
+        use_custom_dna = st.checkbox(
+            "Указать ДНК вручную (если копии рядом с моделью нет)"
+        )
         custom_dna_file = None
         if use_custom_dna:
             dna_list = list_strategy_files(g["strategies_dir"])
             dna_str = [str(p) for p in dna_list]
-            custom_dna_file = st.selectbox("Файл ДНК", dna_str, index=0 if dna_str else -1)
+            custom_dna_file = st.selectbox(
+                "Файл ДНК", dna_str, index=0 if dna_str else -1
+            )
 
         # Оркестр: можно добавить доп. модели на другие задачи
         st.markdown("Опционально: добавить модели для других задач (оркестр)")
         add_policy_model = st.checkbox("Добавить модель для policy_choice")
         policy_model_path = None
         if add_policy_model:
-            policy_model_path = st.selectbox("Файл модели (policy_choice)", mf_str, index=0 if mf_str else -1)
+            policy_model_path = st.selectbox(
+                "Файл модели (policy_choice)", mf_str, index=0 if mf_str else -1
+            )
 
         add_quality_model = st.checkbox("Добавить модель для level_quality")
         quality_model_path = None
         if add_quality_model:
-            quality_model_path = st.selectbox("Файл модели (level_quality)", mf_str, index=0 if mf_str else -1)
+            quality_model_path = st.selectbox(
+                "Файл модели (level_quality)", mf_str, index=0 if mf_str else -1
+            )
 
-        vote = st.selectbox("Голосование (для задач с несколькими моделями)", ["hard", "soft", "weighted"], index=0)
+        vote = st.selectbox(
+            "Голосование (для задач с несколькими моделями)",
+            ["hard", "soft", "weighted"],
+            index=0,
+        )
         submitted = st.form_submit_button("Загрузить модель/оркестр")
         if submitted:
             try:
@@ -159,7 +203,9 @@ def main():
                     dna_module = None
                     if main_bundle["strategy_copy_path"]:
                         try:
-                            dna_module = load_dna_module(main_bundle["strategy_copy_path"])
+                            dna_module = load_dna_module(
+                                main_bundle["strategy_copy_path"]
+                            )
                         except DNAContractError as e:
                             st.warning(f"Ошибка загрузки копии ДНК возле модели: {e}")
                     if dna_module is None:
@@ -174,18 +220,28 @@ def main():
                         S["entry_bundle"] = main_bundle
                         S["ensemble"] = {"entry_action": {"model": entry_model}}
                         S["vote"] = vote
-                        st.success(f"Загружена модель для entry_action: {Path(sel_model).name}")
+                        st.success(
+                            f"Загружена модель для entry_action: {Path(sel_model).name}"
+                        )
                         st.json(entry_meta.get("train_meta", {}))
 
                         # Дополнительные модели
                         if add_policy_model and policy_model_path:
                             pol_bundle = load_model_bundle(Path(policy_model_path))
-                            S["ensemble"]["policy_choice"] = {"model": pol_bundle["model"]}
-                            st.info(f"Добавлена модель policy_choice: {Path(policy_model_path).name}")
+                            S["ensemble"]["policy_choice"] = {
+                                "model": pol_bundle["model"]
+                            }
+                            st.info(
+                                f"Добавлена модель policy_choice: {Path(policy_model_path).name}"
+                            )
                         if add_quality_model and quality_model_path:
                             qual_bundle = load_model_bundle(Path(quality_model_path))
-                            S["ensemble"]["level_quality"] = {"model": qual_bundle["model"]}
-                            st.info(f"Добавлена модель level_quality: {Path(quality_model_path).name}")
+                            S["ensemble"]["level_quality"] = {
+                                "model": qual_bundle["model"]
+                            }
+                            st.info(
+                                f"Добавлена модель level_quality: {Path(quality_model_path).name}"
+                            )
 
                         # feature_columns — из мета основной модели
                         feats = entry_meta.get("feature_columns")
@@ -208,7 +264,10 @@ def main():
     st.markdown("Шаг 3 — Сбор признаков/идей и инференс")
     with st.form("bt_inference_form", clear_on_submit=False):
         meta_override = st.checkbox("Переопределить meta из тренировки", value=False)
-        meta_json = st.text_area("meta (JSON)", value=json.dumps(S.get("train_meta", {}), ensure_ascii=False, indent=2))
+        meta_json = st.text_area(
+            "meta (JSON)",
+            value=json.dumps(S.get("train_meta", {}), ensure_ascii=False, indent=2),
+        )
         run_inf = st.form_submit_button("Собрать фичи/идеи и выполнить инференс")
         if run_inf:
             if "df_raw" not in S:
@@ -242,7 +301,12 @@ def main():
                     )
                     S["signals"] = signals
                     st.success(f"Инференс выполнен. Размер сигналов: {len(signals)}")
-                    st.dataframe(signals[["open_time"] + [c for c in signals.columns if c.endswith("_pred")]].tail(20))
+                    st.dataframe(
+                        signals[
+                            ["open_time"]
+                            + [c for c in signals.columns if c.endswith("_pred")]
+                        ].tail(20)
+                    )
                 except Exception as e:
                     st.error(f"Ошибка инференса: {e}")
 
@@ -252,15 +316,25 @@ def main():
     with st.form("bt_simulate_form", clear_on_submit=False):
         col1, col2, col3 = st.columns(3)
         with col1:
-            fee = st.number_input("Комиссия (доля)", value=0.0004, step=0.0001, format="%.6f")
+            fee = st.number_input(
+                "Комиссия (доля)", value=0.0004, step=0.0001, format="%.6f"
+            )
             spread_abs = st.number_input("Спред (абс.)", value=0.0, step=0.01)
         with col2:
             leverage = st.number_input("Плечо", value=1.0, step=0.5)
-            slippage_abs = st.number_input("Проскальзывание (абс.)", value=0.0, step=0.01)
+            slippage_abs = st.number_input(
+                "Проскальзывание (абс.)", value=0.0, step=0.01
+            )
         with col3:
-            risk_mode = st.selectbox("Риск-режим", ["fixed_cash", "pct_equity"], index=0)
-            risk_value = st.number_input("Риск (валюта или доля)", value=100.0, step=10.0)
-            initial_equity = st.number_input("Стартовый капитал", value=10000.0, step=100.0)
+            risk_mode = st.selectbox(
+                "Риск-режим", ["fixed_cash", "pct_equity"], index=0
+            )
+            risk_value = st.number_input(
+                "Риск (валюта или доля)", value=100.0, step=10.0
+            )
+            initial_equity = st.number_input(
+                "Стартовый капитал", value=10000.0, step=100.0
+            )
 
         run_bt = st.form_submit_button("Симулировать")
         if run_bt:

@@ -31,7 +31,9 @@ def _default_log_formatter() -> logging.Formatter:
     )
 
 
-def get_logger(log_path: Optional[Path] = None, name: str = "app", level: str = "INFO") -> logging.Logger:
+def get_logger(
+    log_path: Optional[Path] = None, name: str = "app", level: str = "INFO"
+) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
 
@@ -99,6 +101,7 @@ def set_global_seed(seed: int = 42) -> None:
     np.random.seed(seed)
     try:
         import torch  # type: ignore
+
         torch.manual_seed(seed)
         if torch.cuda.is_available():  # type: ignore
             torch.cuda.manual_seed_all(seed)  # type: ignore
@@ -114,6 +117,7 @@ def xgb_device_params(use_gpu: bool) -> Dict[str, Any]:
     if use_gpu:
         try:
             import xgboost as xgb  # noqa: F401
+
             # We cannot reliably check CUDA runtime here; rely on user having cuda build.
             return {"device": "cuda", "tree_method": "hist"}
         except Exception:

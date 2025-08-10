@@ -47,7 +47,9 @@ def volatility(close: pd.Series, period: int = 20) -> pd.Series:
     return vol
 
 
-def rolling_minmax(low: pd.Series, high: pd.Series, period: int = 20) -> tuple[pd.Series, pd.Series]:
+def rolling_minmax(
+    low: pd.Series, high: pd.Series, period: int = 20
+) -> tuple[pd.Series, pd.Series]:
     rmin = low.rolling(period, min_periods=period).min()
     rmax = high.rolling(period, min_periods=period).max()
     rmin.name = f"low_min_{period}"

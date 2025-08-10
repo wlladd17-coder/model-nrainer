@@ -20,15 +20,21 @@ STRATEGY_NAME = "Example DNA v1"
 
 # Пример политик выхода: fixed RR и ATR-based
 EXIT_POLICIES: List[Dict[str, Any]] = [
-    {"name": "fixed_rr_1_2", "type": "fixed_rr", "rr": 2.0},      # риск:1, цель:2
-    {"name": "atr_2x", "type": "atr", "atr_mult": 2.0},           # TP/SL по ATR-множителям
+    {"name": "fixed_rr_1_2", "type": "fixed_rr", "rr": 2.0},  # риск:1, цель:2
+    {"name": "atr_2x", "type": "atr", "atr_mult": 2.0},  # TP/SL по ATR-множителям
 ]
 
 # Описание задач
 TASKS: Dict[str, Any] = {
     "entry_action": {"type": "classification", "classes": ["SKIP", "BUY", "SELL"]},
-    "policy_choice": {"type": "classification", "classes": [p["name"] for p in EXIT_POLICIES]},
-    "level_quality": {"type": "classification", "classes": [0, 1]},  # бинарный фильтр качества
+    "policy_choice": {
+        "type": "classification",
+        "classes": [p["name"] for p in EXIT_POLICIES],
+    },
+    "level_quality": {
+        "type": "classification",
+        "classes": [0, 1],
+    },  # бинарный фильтр качества
 }
 
 
@@ -51,11 +57,9 @@ def _atr(df: pd.DataFrame, period: int) -> pd.Series:
     # Локальная реализация ATR (простая SMA по TR)
     high, low, close = df["high"], df["low"], df["close"]
     prev_close = close.shift(1)
-    tr = pd.concat([
-        high - low,
-        (high - prev_close).abs(),
-        (low - prev_close).abs()
-    ], axis=1).max(axis=1)
+    tr = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1)
     return tr.rolling(window=period, min_periods=period).mean().rename(f"atr_{period}")
 
 
@@ -93,11 +97,15 @@ def calculate_features(df: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
         for n in sma_periods:
             out[f"sma_{n}"] = out["close"].rolling(n, min_periods=n).mean()
         for n in ema_periods:
-            out[f"ema_{n}"] = out["close"].ewm(span=n, adjust=False, min_periods=n).mean()
+            out[f"ema_{n}"] = (
+                out["close"].ewm(span=n, adjust=False, min_periods=n).mean()
+            )
 
         out[f"atr_{atr_period}"] = _atr(out, atr_period)
         out[f"rsi_{rsi_period}"] = _rsi(out["close"], rsi_period)
-        out[f"vol_{vol_period}"] = out["close"].pct_change().rolling(vol_period, min_periods=vol_period).std()
+        out[f"vol_{vol_period}"] = (
+            out["close"].pct_change().rolling(vol_period, min_periods=vol_period).std()
+        )
 
         for n in sma_periods:
             out[f"close_sma_{n}_rel"] = out["close"] / out[f"sma_{n}"]
@@ -112,7 +120,9 @@ def calculate_features(df: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
     return out
 
 
-def generate_ideas(df_with_features: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
+def generate_ideas(
+    df_with_features: pd.DataFrame, meta: Dict[str, Any]
+) -> pd.DataFrame:
     """
     Добавляет эвристические идеи/сигналы без заглядывания вперёд.
     Примеры:
@@ -200,7 +210,9 @@ def generate_ideas(df_with_features: pd.DataFrame, meta: Dict[str, Any]) -> pd.D
     return df
 
 
-def build_labels(df_with_ideas: pd.DataFrame, meta: Dict[str, Any]) -> Dict[str, pd.Series]:
+def build_labels(
+    df_with_ideas: pd.DataFrame, meta: Dict[str, Any]
+) -> Dict[str, pd.Series]:
     """
     Формирует таргеты для обучения.
     - entry_action: уже эвристика (0/1/2), можно обучать модель повторять её или модифицировать правило.
@@ -227,7 +239,13 @@ def feature_columns(df_with_features: pd.DataFrame) -> List[str]:
         if col in ("open_time", "open", "high", "low", "close", "volume"):
             continue
         # исключаем явные таргеты/идеи, если они уже есть в df_with_features (обычно их добавляют позже)
-        if col in ("entry_action", "policy_choice", "level_quality", "sl_price", "tp_price"):
+        if col in (
+            "entry_action",
+            "policy_choice",
+            "level_quality",
+            "sl_price",
+            "tp_price",
+        ):
             continue
         # берем общие фичи
         candidates.append(col)
