@@ -1,11 +1,10 @@
 # libs/training.py
 from __future__ import annotations
 
-import io
-import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 import joblib
 import matplotlib.pyplot as plt
@@ -15,7 +14,6 @@ import seaborn as sns
 from sklearn import metrics
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.svm import SVC, SVR
 from datetime import datetime, timezone
 
@@ -188,12 +186,20 @@ def train_one_task(
     reports_dir = Path("reports") / "training"
     ensure_dir(reports_dir)
 
+    t0 = time.time()
     with timeit_ctx("calculate_features", logger):
         df_feat = dna_module.calculate_features(df_raw.copy(), meta)
+    timings["calculate_features"] = time.time() - t0
+
+    t0 = time.time()
     with timeit_ctx("generate_ideas", logger):
         df_ideas = dna_module.generate_ideas(df_feat.copy(), meta)
+    timings["generate_ideas"] = time.time() - t0
+
+    t0 = time.time()
     with timeit_ctx("build_labels", logger):
         labels_dict = dna_module.build_labels(df_ideas.copy(), meta)
+    timings["build_labels"] = time.time() - t0
 
     feats = dna_module.feature_columns(df_feat)
     X_full = dna_module.inference_inputs(df_feat, feats)
@@ -225,8 +231,10 @@ def train_one_task(
     task_type = _infer_task_type(dna_module.TASKS, task_name)
     model = build_model(alg, task_type, params, use_gpu=use_gpu)
 
+    t0 = time.time()
     with timeit_ctx(f"fit {alg}", logger):
         model.fit(X_train, y_train)
+    timings["fit"] = time.time() - t0
 
     # Evaluate
     metrics_out: Dict[str, Any] = {}
