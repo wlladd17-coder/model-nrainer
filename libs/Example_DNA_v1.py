@@ -147,7 +147,6 @@ def generate_ideas(df_with_features: pd.DataFrame, meta: Dict[str, Any]) -> pd.D
     vol = df.get("vol_20")
     if vol is None:
         vol = df["close"].pct_change().rolling(20, min_periods=20).std()
-    policy_names = [p["name"] for p in EXIT_POLICIES]
     policy_idx = np.zeros(len(df), dtype=int)
     high_vol = vol > vol.rolling(200, min_periods=50).median()
     # 0 -> fixed_rr_1_2, 1 -> atr_2x
