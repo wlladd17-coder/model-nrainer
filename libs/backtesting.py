@@ -149,13 +149,21 @@ def run_inference(
             return final
         else:
             # soft/weighted голосование: усредняем вероятности
-            if all_probas[0] is None:
-                # fallback к hard
-                return predict_task(
-                    task
-                )  # рекурсия приведет к hard ветке (т.к. want_proba False)
-            # выясняем число классов по первой модели
-            n_classes = all_probas[0].shape[1]
+            if any(proba is None for proba in all_probas):
+                # fallback к простому мажоритарному голосованию без рекурсии
+                all_preds = []
+                for mrec in models:
+                    model = mrec["model"]
+                    p, _ = _predict_with_model(model, X, want_proba=False)
+                    all_preds.append(p)
+                all_preds = np.array(all_preds)
+                if len(models) == 1:
+                    return all_preds[0]
+                final = []
+                for j in range(all_preds.shape[1]):
+                    vals, cnts = np.unique(all_preds[:, j], return_counts=True)
+                    final.append(vals[np.argmax(cnts)])
+                return np.array(final)
             proba_stack = []
             for k, proba in enumerate(all_probas):
                 if proba is None:
