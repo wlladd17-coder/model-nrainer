@@ -9,6 +9,7 @@ import streamlit as st
 
 # Гарантируем корректные импорты пакета libs даже при запуске не из корня
 import sys
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -26,7 +27,13 @@ from libs.data_io import (
 )
 from libs.dna_contract import load_dna_module, DNAContractError
 from libs.training import train_one_task, save_model_bundle
-from libs.utils import ensure_dir, get_logger, detect_env_summary, TOOL_VERSION, write_json
+from libs.utils import (
+    ensure_dir,
+    get_logger,
+    detect_env_summary,
+    TOOL_VERSION,
+    write_json,
+)
 
 st.set_page_config(page_title="Trainer App", layout="wide")
 
@@ -36,9 +43,13 @@ def sidebar_globals():
     data_dir = Path(st.sidebar.text_input("Каталог данных", "data"))
     models_dir = Path(st.sidebar.text_input("Каталог моделей", "models"))
     reports_dir = Path(st.sidebar.text_input("Каталог отчётов", "reports"))
-    strategies_dir = Path(st.sidebar.text_input("Каталог стратегий (DNA)", "strategies"))
+    strategies_dir = Path(
+        st.sidebar.text_input("Каталог стратегий (DNA)", "strategies")
+    )
     use_gpu = st.sidebar.checkbox("GPU, если доступно", value=False)
-    log_level = st.sidebar.selectbox("Log level", ["INFO", "DEBUG", "WARNING", "ERROR"], index=0)
+    log_level = st.sidebar.selectbox(
+        "Log level", ["INFO", "DEBUG", "WARNING", "ERROR"], index=0
+    )
 
     ensure_dir(data_dir / "raw")
     ensure_dir(data_dir / "prepared")
@@ -62,10 +73,16 @@ def list_strategy_files(strategies_dir: Path) -> List[Path]:
 
 def main():
     g = sidebar_globals()
-    logger = get_logger(log_path=(g["reports_dir"] / "training" / "ui_logs.txt"), name="trainer_ui", level=g["log_level"])
+    logger = get_logger(
+        log_path=(g["reports_dir"] / "training" / "ui_logs.txt"),
+        name="trainer_ui",
+        level=g["log_level"],
+    )
 
     st.title("Trainer — обучатор моделей по ДНК контракту")
-    st.caption(f"Версия инструмента: {TOOL_VERSION} | Среда: {detect_env_summary().get('platform')}")
+    st.caption(
+        f"Версия инструмента: {TOOL_VERSION} | Среда: {detect_env_summary().get('platform')}"
+    )
 
     if "state" not in st.session_state:
         st.session_state.state = {}
@@ -78,14 +95,22 @@ def main():
     # Шаг 1 — Данные
     st.markdown("Шаг 1 — Загрузка и валидация данных")
     with st.form("load_data_form", clear_on_submit=False):
-        st.write("Выберите файлы из data/raw или data/prepared. Будут объединены по времени.")
+        st.write(
+            "Выберите файлы из data/raw или data/prepared. Будут объединены по времени."
+        )
         col1, col2, col3 = st.columns(3)
         with col1:
-            csv_files = st.multiselect("CSV файлы", [str(p) for p in sorted(raw_dir.glob("*.csv"))])
+            csv_files = st.multiselect(
+                "CSV файлы", [str(p) for p in sorted(raw_dir.glob("*.csv"))]
+            )
         with col2:
-            xlsx_files = st.multiselect("XLSX файлы", [str(p) for p in sorted(raw_dir.glob("*.xlsx"))])
+            xlsx_files = st.multiselect(
+                "XLSX файлы", [str(p) for p in sorted(raw_dir.glob("*.xlsx"))]
+            )
         with col3:
-            json_files = st.multiselect("JSON файлы", [str(p) for p in sorted(raw_dir.glob("*.json"))])
+            json_files = st.multiselect(
+                "JSON файлы", [str(p) for p in sorted(raw_dir.glob("*.json"))]
+            )
 
         submitted = st.form_submit_button("Загрузить данные")
         if submitted:
@@ -108,17 +133,25 @@ def main():
                         try:
                             if pd.api.types.is_integer_dtype(s):
                                 if s.dropna().astype("int64").gt(10**12).any():
-                                    df["open_time"] = pd.to_datetime(s, unit="ms", utc=True)
+                                    df["open_time"] = pd.to_datetime(
+                                        s, unit="ms", utc=True
+                                    )
                                 else:
-                                    df["open_time"] = pd.to_datetime(s, unit="s", utc=True)
+                                    df["open_time"] = pd.to_datetime(
+                                        s, unit="s", utc=True
+                                    )
                             else:
-                                df["open_time"] = pd.to_datetime(s, utc=True, errors="coerce")
+                                df["open_time"] = pd.to_datetime(
+                                    s, utc=True, errors="coerce"
+                                )
                         except Exception:
                             pass
 
                     validate_dataframe(df)
                     state["df_raw"] = df
-                    state["source_files"] = [Path(p) for p in (csv_files + xlsx_files + json_files)]
+                    state["source_files"] = [
+                        Path(p) for p in (csv_files + xlsx_files + json_files)
+                    ]
                     st.success(f"Загружено и валидировано: {len(df)} строк.")
                     st.dataframe(df.head(20))
             except DataIOError as e:
@@ -152,15 +185,33 @@ def main():
         colA, colB, colC = st.columns(3)
         with colA:
             seed = st.number_input("Seed", value=int(state.get("seed", 42)))
-            atr_period = st.number_input("atr_period", value=int(state.get("atr_period", 14)))
-            rsi_period = st.number_input("rsi_period", value=int(state.get("rsi_period", 14)))
+            atr_period = st.number_input(
+                "atr_period", value=int(state.get("atr_period", 14))
+            )
+            rsi_period = st.number_input(
+                "rsi_period", value=int(state.get("rsi_period", 14))
+            )
         with colB:
             sma_periods = st.text_input("sma_periods (через запятую)", value="10,20,50")
             ema_periods = st.text_input("ema_periods (через запятую)", value="12,26")
-            vol_period = st.number_input("vol_period", value=int(state.get("vol_period", 20)))
+            vol_period = st.number_input(
+                "vol_period", value=int(state.get("vol_period", 20))
+            )
         with colC:
-            valid_size = st.slider("Доля валидации", min_value=0.05, max_value=0.5, value=0.2, step=0.05)
-            model_name = st.selectbox("Алгоритм", ["RandomForest", "XGBoost", "LightGBM", "LogisticRegression", "SVC", "CatBoost"])
+            valid_size = st.slider(
+                "Доля валидации", min_value=0.05, max_value=0.5, value=0.2, step=0.05
+            )
+            model_name = st.selectbox(
+                "Алгоритм",
+                [
+                    "RandomForest",
+                    "XGBoost",
+                    "LightGBM",
+                    "LogisticRegression",
+                    "SVC",
+                    "CatBoost",
+                ],
+            )
             use_gpu_flag = st.checkbox("GPU (перекрыть sidebar)", value=False)
 
         # Гиперпараметры
@@ -169,13 +220,17 @@ def main():
         if model_name == "RandomForest":
             col1, col2 = st.columns(2)
             with col1:
-                params["n_estimators"] = st.number_input("n_estimators", value=300, step=50)
+                params["n_estimators"] = st.number_input(
+                    "n_estimators", value=300, step=50
+                )
             with col2:
                 params["max_depth"] = st.number_input("max_depth", value=6, step=1)
         elif model_name == "XGBoost":
             col1, col2, col3 = st.columns(3)
             with col1:
-                params["n_estimators"] = st.number_input("n_estimators", value=400, step=50)
+                params["n_estimators"] = st.number_input(
+                    "n_estimators", value=400, step=50
+                )
             with col2:
                 params["max_depth"] = st.number_input("max_depth", value=6, step=1)
             with col3:
@@ -183,7 +238,9 @@ def main():
         elif model_name == "LightGBM":
             col1, col2, col3 = st.columns(3)
             with col1:
-                params["n_estimators"] = st.number_input("n_estimators", value=400, step=50)
+                params["n_estimators"] = st.number_input(
+                    "n_estimators", value=400, step=50
+                )
             with col2:
                 params["max_depth"] = st.number_input("max_depth", value=-1, step=1)
             with col3:
@@ -198,7 +255,9 @@ def main():
             with col1:
                 params["C"] = st.number_input("C", value=1.0)
             with col2:
-                params["kernel"] = st.selectbox("kernel", ["rbf", "linear", "poly", "sigmoid"])
+                params["kernel"] = st.selectbox(
+                    "kernel", ["rbf", "linear", "poly", "sigmoid"]
+                )
         elif model_name == "CatBoost":
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -222,8 +281,12 @@ def main():
                     "atr_period": int(atr_period),
                     "rsi_period": int(rsi_period),
                     "vol_period": int(vol_period),
-                    "sma_periods": [int(x.strip()) for x in sma_periods.split(",") if x.strip()],
-                    "ema_periods": [int(x.strip()) for x in ema_periods.split(",") if x.strip()],
+                    "sma_periods": [
+                        int(x.strip()) for x in sma_periods.split(",") if x.strip()
+                    ],
+                    "ema_periods": [
+                        int(x.strip()) for x in ema_periods.split(",") if x.strip()
+                    ],
                 }
                 state["meta"] = meta
                 state["model_spec"] = {
@@ -242,14 +305,20 @@ def main():
     # Шаг 4 — Обучение
     st.markdown("Шаг 4 — Обучение")
     with st.form("train_form", clear_on_submit=False):
-        model_name_out = st.text_input("Имя модели (basename без расширения)", value="model_example_entry_action")
+        model_name_out = st.text_input(
+            "Имя модели (basename без расширения)", value="model_example_entry_action"
+        )
         run = st.form_submit_button("Обучить")
         if run:
             if "df_raw" not in state:
                 st.error("Нет данных. Выполните шаг 1.")
             elif "dna_module" not in state:
                 st.error("Нет ДНК. Выполните шаг 2.")
-            elif "meta" not in state or "model_spec" not in state or "split_cfg" not in state:
+            elif (
+                "meta" not in state
+                or "model_spec" not in state
+                or "split_cfg" not in state
+            ):
                 st.error("Нет конфигурации. Выполните шаг 3.")
             else:
                 try:
@@ -282,10 +351,15 @@ def main():
                     st.json(res.metrics)
 
                     if "confusion_matrix" in res.artifacts:
-                        st.image(str(res.artifacts["confusion_matrix"]), caption="Confusion Matrix")
+                        st.image(
+                            str(res.artifacts["confusion_matrix"]),
+                            caption="Confusion Matrix",
+                        )
                     if "feature_importances" in res.artifacts:
                         st.write("Feature importances")
-                        st.dataframe(pd.read_csv(res.artifacts["feature_importances"]).head(30))
+                        st.dataframe(
+                            pd.read_csv(res.artifacts["feature_importances"]).head(30)
+                        )
 
                 except Exception as e:
                     st.error(f"Ошибка обучения: {e}")
@@ -302,7 +376,9 @@ def main():
             else:
                 try:
                     res = state["train_result"]
-                    out_prefix = g["models_dir"] / state.get("model_name_out", "model_example")
+                    out_prefix = g["models_dir"] / state.get(
+                        "model_name_out", "model_example"
+                    )
                     meta_out = {
                         "strategy_name": state["dna_module"].STRATEGY_NAME,
                         **res.train_meta,
@@ -326,7 +402,9 @@ def main():
                         cm_dst = report_dir / "confusion_matrix.png"
                         Path(res.artifacts["confusion_matrix"]).replace(cm_dst)
 
-                    st.success(f"Сохранено: {saved_paths['model'].name}, {saved_paths['meta'].name}, {saved_paths['strategy_py'].name}")
+                    st.success(
+                        f"Сохранено: {saved_paths['model'].name}, {saved_paths['meta'].name}, {saved_paths['strategy_py'].name}"
+                    )
                 except Exception as e:
                     st.error(f"Ошибка сохранения: {e}")
 

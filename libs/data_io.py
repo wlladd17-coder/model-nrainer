@@ -94,7 +94,11 @@ def merge_datasets(dfs: List[pd.DataFrame]) -> pd.DataFrame:
     df = pd.concat(dfs, axis=0, ignore_index=True)
     if "open_time" not in df.columns:
         raise DataIOError("Merged DataFrame missing 'open_time'")
-    df = df.drop_duplicates(subset=["open_time"]).sort_values("open_time").reset_index(drop=True)
+    df = (
+        df.drop_duplicates(subset=["open_time"])
+        .sort_values("open_time")
+        .reset_index(drop=True)
+    )
     return df
 
 
@@ -106,7 +110,10 @@ def validate_dataframe(df: pd.DataFrame) -> None:
 
     # 1) приведение open_time к datetime при необходимости (самовосстановление)
     # Учитываем случаи object/str/float и nullable dtype, защищаемся от падений issubdtype
-    if not (np.issubdtype(df["open_time"].dtype, np.datetime64) or pd.api.types.is_datetime64_any_dtype(df["open_time"])):
+    if not (
+        np.issubdtype(df["open_time"].dtype, np.datetime64)
+        or pd.api.types.is_datetime64_any_dtype(df["open_time"])
+    ):
         s = df["open_time"]
         try:
             if pd.api.types.is_integer_dtype(s):
@@ -184,7 +191,12 @@ def maybe_load_cached(hash_key: str, prepared_dir: Path) -> Optional[pd.DataFram
     return None
 
 
-def save_cached(df: pd.DataFrame, hash_key: str, prepared_dir: Path, meta: Dict[str, Any] | None = None) -> Path:
+def save_cached(
+    df: pd.DataFrame,
+    hash_key: str,
+    prepared_dir: Path,
+    meta: Dict[str, Any] | None = None,
+) -> Path:
     ensure_dir(prepared_dir)
     out_path = prepared_dir / f"{hash_key}.parquet"
     df.to_parquet(out_path, index=False)

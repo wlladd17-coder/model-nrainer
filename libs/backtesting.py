@@ -14,16 +14,18 @@ from .utils import ensure_dir, write_json, get_logger, timeit_ctx
 
 @dataclass
 class SimulationConfig:
-    fee: float = 0.0004              # комиссия (доля за оборот в одну сторону)
-    spread_abs: float = 0.0          # абсолютный спред (половина на каждую сторону)
-    leverage: float = 1.0            # плечо, масштабирует PnL
-    risk_mode: str = "fixed_cash"    # fixed_cash | pct_equity
-    risk_value: float = 100.0        # $ или доля от капитала
+    fee: float = 0.0004  # комиссия (доля за оборот в одну сторону)
+    spread_abs: float = 0.0  # абсолютный спред (половина на каждую сторону)
+    leverage: float = 1.0  # плечо, масштабирует PnL
+    risk_mode: str = "fixed_cash"  # fixed_cash | pct_equity
+    risk_value: float = 100.0  # $ или доля от капитала
     initial_equity: float = 10_000.0
-    slippage_abs: float = 0.0        # дополнительный проскальзывание в абсолютных единицах
+    slippage_abs: float = 0.0  # дополнительный проскальзывание в абсолютных единицах
 
 
-def _prepare_features_and_X(dna_module, df_raw: pd.DataFrame, meta: Dict[str, Any], feats: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def _prepare_features_and_X(
+    dna_module, df_raw: pd.DataFrame, meta: Dict[str, Any], feats: List[str]
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df_feat = dna_module.calculate_features(df_raw.copy(), meta)
     df_ideas = dna_module.generate_ideas(df_feat.copy(), meta)
     X = dna_module.inference_inputs(df_feat, feats)
@@ -32,7 +34,9 @@ def _prepare_features_and_X(dna_module, df_raw: pd.DataFrame, meta: Dict[str, An
     return df_ideas, X
 
 
-def _predict_with_model(model, X: pd.DataFrame, want_proba: bool) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+def _predict_with_model(
+    model, X: pd.DataFrame, want_proba: bool
+) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     proba = None
     if want_proba and hasattr(model, "predict_proba"):
         proba = model.predict_proba(X)
@@ -53,14 +57,17 @@ def run_inference(
     """
     model_or_ensemble варианты:
       - одиночная модель и мета (.meta.json) для одной задачи -> ожидаем 'entry_action'
-      - словарь вида:
-        {
-          "entry_action": {"model": clfA},
-          "policy_choice": {"model": clfB},
-          "level_quality": {"model": clfC},
-          "weights": {"entry_action": 1.0, ...},  # для голосования (если несколько моделей на задачу)
-          "vote": "soft" | "hard" | "weighted"
-        }
+        - словарь вида:
+          {
+            "entry_action": {"model": clfA},
+            "policy_choice": {"model": clfB},
+            "level_quality": {"model": clfC},
+            "weights": {
+                "entry_action": 1.0,
+                ...
+            },  # для голосования (если несколько моделей на задачу)
+            "vote": "soft" | "hard" | "weighted"
+          }
     Выход: DataFrame сигналов с колонками:
       - entry_action_pred (str или int)
       - policy_choice_pred (str или int)
@@ -78,22 +85,31 @@ def run_inference(
     weights = {}
     tasks_schema = getattr(dna_module, "TASKS", {})
 
-    if isinstance(model_or_ensemble, dict) and ("entry_action" in model_or_ensemble or "models" in model_or_ensemble):
+    if isinstance(model_or_ensemble, dict) and (
+        "entry_action" in model_or_ensemble or "models" in model_or_ensemble
+    ):
         # Возможны разные формы. Нормализуем:
         if "models" in model_or_ensemble:
             # список структур вида {"task": "...", "model": obj, "weight": 1.0}
             for item in model_or_ensemble["models"]:
                 task = item["task"]
-                ensemble.setdefault(task, []).append({"model": item["model"], "weight": float(item.get("weight", 1.0))})
+                ensemble.setdefault(task, []).append(
+                    {"model": item["model"], "weight": float(item.get("weight", 1.0))}
+                )
         else:
             for task in ("entry_action", "policy_choice", "level_quality"):
                 v = model_or_ensemble.get(task)
                 if v is None:
                     continue
                 if isinstance(v, list):
-                    ensemble[task] = [{"model": it["model"], "weight": float(it.get("weight", 1.0))} for it in v]
+                    ensemble[task] = [
+                        {"model": it["model"], "weight": float(it.get("weight", 1.0))}
+                        for it in v
+                    ]
                 else:
-                    ensemble[task] = [{"model": v["model"], "weight": float(v.get("weight", 1.0))}]
+                    ensemble[task] = [
+                        {"model": v["model"], "weight": float(v.get("weight", 1.0))}
+                    ]
         vote = model_or_ensemble.get("vote")
         weights = model_or_ensemble.get("weights", {})
     else:
@@ -106,7 +122,7 @@ def run_inference(
         models = ensemble.get(task)
         if not models:
             return None
-        want_proba = (vote in ("soft", "weighted"))
+        want_proba = vote in ("soft", "weighted")
         # Собираем предсказания
         all_preds = []
         all_probas = []
@@ -135,7 +151,9 @@ def run_inference(
             # soft/weighted голосование: усредняем вероятности
             if all_probas[0] is None:
                 # fallback к hard
-                return predict_task(task)  # рекурсия приведет к hard ветке (т.к. want_proba False)
+                return predict_task(
+                    task
+                )  # рекурсия приведет к hard ветке (т.к. want_proba False)
             # выясняем число классов по первой модели
             n_classes = all_probas[0].shape[1]
             proba_stack = []
@@ -186,8 +204,9 @@ def simulate(
     """
     Простая симуляция рыночных ордеров:
       - вход по следующей свече по цене close +/- spread_abs + slippage_abs
-      - выход по политике (простейшие fixed RR или ATR-based из EXIT_POLICIES — задаются в signals_df колонками:
-          tp_price, sl_price или rr, atr_mult и т.п. — конкретику формирует ДНК/агрегатор)
+      - выход по политике (простейшие fixed RR или ATR-based из EXIT_POLICIES
+        — задаются в signals_df колонками: tp_price, sl_price или rr,
+        atr_mult и т.п. — конкретику формирует ДНК/агрегатор)
       - комиссия fee и спред учитываются
       - плечо масштабирует PnL
 
@@ -206,7 +225,9 @@ def simulate(
     dfp = dfp.sort_values("open_time").reset_index(drop=True)
     sig = signals_df.copy()
     sig = sig.sort_values("open_time").reset_index(drop=True)
-    df = dfp.merge(sig[[c for c in sig.columns if c != "volume"]], on="open_time", how="left")
+    df = dfp.merge(
+        sig[[c for c in sig.columns if c != "volume"]], on="open_time", how="left"
+    )
 
     # Нормируем entry_action к int: 0=SKIP,1=BUY,2=SELL
     def norm_action(x):
@@ -228,13 +249,15 @@ def simulate(
     equity = float(cfg.initial_equity)
     equity_curve = []
     in_position = False
-    pos_side = 0     # +1 для BUY, -1 для SELL
+    pos_side = 0  # +1 для BUY, -1 для SELL
     pos_entry = 0.0
     pos_qty = 0.0
     pos_policy = None
     entry_time = None
 
-    def price_with_costs(base_price: float, side: int, spread_abs: float, slippage_abs: float) -> float:
+    def price_with_costs(
+        base_price: float, side: int, spread_abs: float, slippage_abs: float
+    ) -> float:
         # покупка по цене ask = base + spread, продажа по bid = base - spread
         p = base_price + (spread_abs + slippage_abs) * (1 if side > 0 else -1)
         return max(p, 1e-12)
@@ -247,7 +270,8 @@ def simulate(
 
             # закрытие позиции по SL/TP, если внутри бара достигнуты уровни
             if in_position:
-                # уровни из signals_df: ожидаем sl_price/tp_price, если нет — выходим по close следующего бара
+                # уровни из signals_df: ожидаем sl_price/tp_price
+                # если нет — выходим по close следующего бара
                 sl_price = row.get("sl_price", np.nan)
                 tp_price = row.get("tp_price", np.nan)
 
@@ -257,23 +281,33 @@ def simulate(
                 # Для BUY: SL срабатывает если next.low <= sl, TP если next.high >= tp
                 if pos_side > 0:
                     if not np.isnan(sl_price) and next_row["low"] <= sl_price:
-                        exit_price = price_with_costs(sl_price, -1, cfg.spread_abs, cfg.slippage_abs)
+                        exit_price = price_with_costs(
+                            sl_price, -1, cfg.spread_abs, cfg.slippage_abs
+                        )
                         exit_reason = "SL"
                     elif not np.isnan(tp_price) and next_row["high"] >= tp_price:
-                        exit_price = price_with_costs(tp_price, -1, cfg.spread_abs, cfg.slippage_abs)
+                        exit_price = price_with_costs(
+                            tp_price, -1, cfg.spread_abs, cfg.slippage_abs
+                        )
                         exit_reason = "TP"
                 else:
                     # SELL: SL если next.high >= sl, TP если next.low <= tp
                     if not np.isnan(sl_price) and next_row["high"] >= sl_price:
-                        exit_price = price_with_costs(sl_price, +1, cfg.spread_abs, cfg.slippage_abs)
+                        exit_price = price_with_costs(
+                            sl_price, +1, cfg.spread_abs, cfg.slippage_abs
+                        )
                         exit_reason = "SL"
                     elif not np.isnan(tp_price) and next_row["low"] <= tp_price:
-                        exit_price = price_with_costs(tp_price, +1, cfg.spread_abs, cfg.slippage_abs)
+                        exit_price = price_with_costs(
+                            tp_price, +1, cfg.spread_abs, cfg.slippage_abs
+                        )
                         exit_reason = "TP"
 
                 # если не сработало — закрываем на close следующего бара
                 if exit_price is None and i + 1 < len(df):
-                    mkt_exit = price_with_costs(next_row["close"], -pos_side, cfg.spread_abs, cfg.slippage_abs)
+                    mkt_exit = price_with_costs(
+                        next_row["close"], -pos_side, cfg.spread_abs, cfg.slippage_abs
+                    )
                     exit_price = mkt_exit
                     exit_reason = "MKT"
 
@@ -286,17 +320,19 @@ def simulate(
                 pnl = gross - fee_in - fee_out
                 equity += pnl
 
-                trades.append({
-                    "entry_time": entry_time,
-                    "exit_time": next_row["open_time"],
-                    "side": "BUY" if pos_side > 0 else "SELL",
-                    "entry": pos_entry,
-                    "exit": exit_price,
-                    "qty": pos_qty,
-                    "pnl": pnl,
-                    "reason": exit_reason,
-                    "policy": pos_policy,
-                })
+                trades.append(
+                    {
+                        "entry_time": entry_time,
+                        "exit_time": next_row["open_time"],
+                        "side": "BUY" if pos_side > 0 else "SELL",
+                        "entry": pos_entry,
+                        "exit": exit_price,
+                        "qty": pos_qty,
+                        "pnl": pnl,
+                        "reason": exit_reason,
+                        "policy": pos_policy,
+                    }
+                )
 
                 in_position = False
                 pos_side = 0
@@ -311,7 +347,9 @@ def simulate(
                 if act in (1, 2):
                     side = +1 if act == 1 else -1
                     # вход по цене следующей свечи
-                    entry_price = price_with_costs(next_row["close"], side, cfg.spread_abs, cfg.slippage_abs)
+                    entry_price = price_with_costs(
+                        next_row["close"], side, cfg.spread_abs, cfg.slippage_abs
+                    )
                     qty = _calc_position_size(entry_price, equity, cfg)
                     if qty > 0:
                         in_position = True
@@ -336,17 +374,19 @@ def simulate(
 def _compute_metrics(trades: pd.DataFrame, equity: pd.DataFrame) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if trades.empty:
-        out.update({
-            "total_trades": 0,
-            "total_pnl": 0.0,
-            "winrate": 0.0,
-            "avg_win": 0.0,
-            "avg_loss": 0.0,
-            "profit_factor": 0.0,
-            "max_dd": 0.0,
-            "sharpe": 0.0,
-            "sqn": 0.0,
-        })
+        out.update(
+            {
+                "total_trades": 0,
+                "total_pnl": 0.0,
+                "winrate": 0.0,
+                "avg_win": 0.0,
+                "avg_loss": 0.0,
+                "profit_factor": 0.0,
+                "max_dd": 0.0,
+                "sharpe": 0.0,
+                "sqn": 0.0,
+            }
+        )
         return out
 
     pnl = trades["pnl"].to_numpy()
@@ -356,18 +396,27 @@ def _compute_metrics(trades: pd.DataFrame, equity: pd.DataFrame) -> Dict[str, An
     winrate = float(len(wins) / len(pnl)) if len(pnl) > 0 else 0.0
     avg_win = float(np.mean(wins)) if len(wins) else 0.0
     avg_loss = float(np.mean(losses)) if len(losses) else 0.0
-    profit_factor = float((wins.sum() / -losses.sum())) if len(wins) and len(losses) else (np.inf if len(losses) == 0 and len(wins) > 0 else 0.0)
+    has_wins = len(wins) > 0
+    has_losses = len(losses) > 0
+    if has_wins and has_losses:
+        profit_factor = float(wins.sum() / -losses.sum())
+    elif not has_losses and has_wins:
+        profit_factor = float(np.inf)
+    else:
+        profit_factor = 0.0
 
     # Max Drawdown по equity
     eq = equity["equity"].to_numpy(dtype=float)
     running_max = np.maximum.accumulate(eq)
-    drawdown = (eq - running_max)
+    drawdown = eq - running_max
     max_dd = float(drawdown.min())
 
     # Sharpe (простая): mean daily pnl / std daily pnl; на основе изменений equity
     rets = np.diff(eq)
     if rets.size > 1 and np.std(rets) > 1e-12:
-        sharpe = float(np.mean(rets) / np.std(rets) * np.sqrt(252))  # 252 как приближение
+        sharpe = float(
+            np.mean(rets) / np.std(rets) * np.sqrt(252)
+        )  # 252 как приближение
     else:
         sharpe = 0.0
 
@@ -377,17 +426,19 @@ def _compute_metrics(trades: pd.DataFrame, equity: pd.DataFrame) -> Dict[str, An
     else:
         sqn = 0.0
 
-    out.update({
-        "total_trades": int(len(trades)),
-        "total_pnl": total_pnl,
-        "winrate": winrate,
-        "avg_win": avg_win,
-        "avg_loss": avg_loss,
-        "profit_factor": profit_factor,
-        "max_dd": max_dd,
-        "sharpe": sharpe,
-        "sqn": sqn,
-    })
+    out.update(
+        {
+            "total_trades": int(len(trades)),
+            "total_pnl": total_pnl,
+            "winrate": winrate,
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
+            "profit_factor": profit_factor,
+            "max_dd": max_dd,
+            "sharpe": sharpe,
+            "sqn": sqn,
+        }
+    )
     return out
 
 
