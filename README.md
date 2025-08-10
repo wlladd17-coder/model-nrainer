@@ -156,4 +156,7 @@
 
 - Рекомендуется добавить unit-тесты для libs/dna_contract.py, libs/data_io.py и критичных частей backtesting.py.
 
-# model-nrainer
+## Лицензия
+
+- Укажите лицензию по вашему проекту.
+
