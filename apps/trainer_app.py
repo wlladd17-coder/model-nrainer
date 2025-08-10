@@ -21,9 +21,6 @@ from libs.data_io import (
     load_json,
     merge_datasets,
     validate_dataframe,
-    maybe_load_cached,
-    save_cached,
-    build_cache_key_for_step,
 )
 from libs.dna_contract import load_dna_module, DNAContractError
 from libs.training import train_one_task, save_model_bundle
@@ -324,14 +321,7 @@ def main():
                 try:
                     dna = state["dna_module"]
                     task_name = state.get("task_name") or list(dna.TASKS.keys())[0]
-
-                    _ = build_cache_key_for_step(
-                        source_files=state.get("source_files", []),
-                        dna_name=dna.STRATEGY_NAME,
-                        meta=state["meta"],
-                        step="features_ideas",
-                        tool_ver=TOOL_VERSION,
-                    )
+                    # Кэширование подготовленных фич отключено, вычисления выполняются каждый запуск
 
                     res = train_one_task(
                         dna_module=dna,
